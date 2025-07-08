@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet author="anna" id="changelog-1.0">
+        <sql>
+            CREATE TABLE IF NOT EXISTS users
+            (
+                id uuid NOT NULL PRIMARY KEY,
+                username character varying(255),
+                firstname character varying(255),
+                lastname character varying(255),
+                phone character varying(20),
+                email character varying(255),
+                created_timestamp bigint,
+                social_media_link character varying(255)
+            );
+
+            CREATE TABLE IF NOT EXISTS business_accounts
+            (
+                id uuid NOT NULL PRIMARY KEY,
+                name character varying(255)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_business_accounts
+            (
+                business_account_id uuid NOT NULL,
+                user_id uuid NOT NULL,
+                FOREIGN KEY (business_account_id) REFERENCES business_accounts(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        </sql>
+
+        <rollback>
+            <dropTable tableName="users" />
+            <dropTable tableName="business_accounts" />
+            <dropTable tableName="user_business_accounts" />
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
