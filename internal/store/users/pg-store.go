@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 const tableName = "users"
@@ -112,7 +113,27 @@ func (s *PgStore) UpdateUser(ctx context.Context, u *User) error {
 
 	_, err := s.writePool.Exec(ctx, query, u.Username, u.FirstName, u.LastName, u.Phone, u.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			log.Ctx(ctx).Error().Err(err).Msgf("user %s not found", u.ID)
+			return ErrUserNotFound
+		}
+		log.Ctx(ctx).Error().Err(err).Msgf("failed to update user %s", u.ID)
 		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
+}
+
+func (s *PgStore) DeleteUser(ctx context.Context, userID string) error {
+	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, tableName)
+
+	_, err := s.writePool.Exec(ctx, query, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		log.Ctx(ctx).Error().Err(err).Msgf("failed to delete user %s", userID)
+		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
 	return nil

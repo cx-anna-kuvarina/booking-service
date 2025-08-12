@@ -2,6 +2,8 @@ package business_accounts
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +12,10 @@ import (
 const (
 	businessAccountsTable     = "business_accounts"
 	userBusinessAccountsTable = "user_business_accounts"
+)
+
+var (
+	NotFoundError = errors.New("business account not found")
 )
 
 type PgStore struct {
@@ -96,6 +102,9 @@ func (s *PgStore) DeleteBusinessAccount(ctx context.Context, businessAccountID s
 	`, businessAccountsTable)
 	_, err = tx.Exec(ctx, accDelQuery, businessAccountID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return NotFoundError
+		}
 		return fmt.Errorf("failed to delete business account: %w", err)
 	}
 
@@ -114,4 +123,17 @@ func (s *PgStore) UserOwnsBusinessAccount(ctx context.Context, businessAccountID
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (s *PgStore) GetBusinessAccount(ctx context.Context, businessAccountID string) (*BusinessAccount, error) {
+	query := `SELECT id, name, business_type, location, links FROM business_accounts WHERE id = $1`
+	var account BusinessAccount
+	err := s.readPool.QueryRow(ctx, query, businessAccountID).Scan(&account.ID, &account.Name, &account.BusinessType, &account.Location, &account.Links)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, NotFoundError
+		}
+		return nil, err
+	}
+	return &account, nil
 }

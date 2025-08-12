@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Booking struct {
@@ -34,15 +35,21 @@ type Store interface {
 	CreateBooking(ctx context.Context, req CreateBookingRequest) (*Booking, error)
 }
 
-type store struct {
-	db *sql.DB
+type PgStore struct {
+	readPool  *pgxpool.Pool
+	writePool *pgxpool.Pool
 }
 
-func NewStore(db *sql.DB) Store {
-	return &store{db: db}
+var _ Store = NewStore(nil, nil)
+
+func NewStore(readPool, writePool *pgxpool.Pool) *PgStore {
+	return &PgStore{
+		readPool:  readPool,
+		writePool: writePool,
+	}
 }
 
-func (s *store) GetBooking(ctx context.Context, id string) (*Booking, error) {
+func (s *PgStore) GetBooking(ctx context.Context, id string) (*Booking, error) {
 	query := `
 		SELECT id, user_id, business_id, service_id, start_time, end_time, status, created_at, updated_at
 		FROM bookings
@@ -50,7 +57,7 @@ func (s *store) GetBooking(ctx context.Context, id string) (*Booking, error) {
 	`
 
 	var booking Booking
-	err := s.db.QueryRowContext(ctx, query, id).Scan(
+	err := s.readPool.QueryRow(ctx, query, id).Scan(
 		&booking.ID,
 		&booking.UserID,
 		&booking.BusinessID,
@@ -72,7 +79,7 @@ func (s *store) GetBooking(ctx context.Context, id string) (*Booking, error) {
 	return &booking, nil
 }
 
-func (s *store) CreateBooking(ctx context.Context, req CreateBookingRequest) (*Booking, error) {
+func (s *PgStore) CreateBooking(ctx context.Context, req CreateBookingRequest) (*Booking, error) {
 	query := `
 		INSERT INTO bookings (
 			id, user_id, business_id, service_id, start_time, end_time, status, created_at, updated_at
@@ -94,7 +101,7 @@ func (s *store) CreateBooking(ctx context.Context, req CreateBookingRequest) (*B
 		UpdatedAt:  now,
 	}
 
-	err := s.db.QueryRowContext(ctx, query,
+	err := s.writePool.QueryRow(ctx, query,
 		booking.ID,
 		booking.UserID,
 		booking.BusinessID,

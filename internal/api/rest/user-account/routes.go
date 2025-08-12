@@ -18,4 +18,6 @@ func (r Router) RegisterRoutes(router *mux.Router) {
 	userRouter.Use(r.authMiddleware.Middleware)
 
 	userRouter.HandleFunc("/", r.handler.GetUserAccount).Methods("GET")
+	userRouter.HandleFunc("/{id}", r.handler.UpdateUserAccount).Methods("PUT")
+	userRouter.HandleFunc("/{id}", r.handler.DeleteUserAccount).Methods("DELETE")
 }

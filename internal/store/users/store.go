@@ -17,4 +17,5 @@ type Store interface {
 	GetUserIdByEmail(context.Context, string) (string, error)
 	GetUser(context.Context, string) (*User, error)
 	UpdateUser(context.Context, *User) error
+	DeleteUser(context.Context, string) error
 }

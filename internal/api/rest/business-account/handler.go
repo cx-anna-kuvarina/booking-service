@@ -8,6 +8,8 @@ import (
 	utoken "booking-service/pkg/utils/token"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 )
 
 type Handler struct {
@@ -72,6 +74,13 @@ func (h *Handler) CreateBusinessAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) UpdateBusinessAccount(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	businessAccountID, ok := vars["id"]
+	if !ok {
+		http.Error(w, "Business account ID is required", http.StatusBadRequest)
+		return
+	}
+
 	var req UpdateBusinessAccountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -86,13 +95,18 @@ func (h *Handler) UpdateBusinessAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate user owns the business account using store method
-	owns, err := h.store.UserOwnsBusinessAccount(r.Context(), req.ID, userID)
+	owns, err := h.store.UserOwnsBusinessAccount(r.Context(), businessAccountID, userID)
 	if err != nil {
 		http.Error(w, "Failed to validate ownership", http.StatusInternalServerError)
 		return
 	}
 	if !owns {
 		http.Error(w, "Forbidden: you do not own this business account", http.StatusForbidden)
+		return
+	}
+
+	if req.ID != businessAccountID {
+		http.Error(w, "ID does not match business account ID", http.StatusBadRequest)
 		return
 	}
 
@@ -119,17 +133,13 @@ func (h *Handler) UpdateBusinessAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) DeleteBusinessAccount(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Extract business account ID from query or path
-	businessAccountID := r.URL.Query().Get("id")
-	if businessAccountID == "" {
+	vars := mux.Vars(r)
+	businessAccountID, ok := vars["id"]
+	if !ok {
 		http.Error(w, "Business account ID is required", http.StatusBadRequest)
 		return
 	}
+	ctx := r.Context()
 
 	// Extract user ID from JWT (Authorization header)
 	token := r.Header.Get("Authorization")
@@ -152,9 +162,39 @@ func (h *Handler) DeleteBusinessAccount(w http.ResponseWriter, r *http.Request) 
 
 	err = h.store.DeleteBusinessAccount(r.Context(), businessAccountID)
 	if err != nil {
+		if err == business_accounts.NotFoundError {
+			http.Error(w, "Business account not found", http.StatusNotFound)
+			return
+		}
+		log.Ctx(ctx).Error().Err(err).Msgf("Failed to delete business account: %s", err.Error())
 		http.Error(w, "Failed to delete business account", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetBusinessAccount(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	businessAccountID, ok := vars["id"]
+	if !ok {
+		http.Error(w, "Business account ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	account, err := h.store.GetBusinessAccount(r.Context(), businessAccountID)
+	if err != nil {
+		if err == business_accounts.NotFoundError {
+			http.Error(w, "Business account not found", http.StatusNotFound)
+			return
+		}
+		log.Ctx(ctx).Error().Err(err).Msgf("Failed to delete business account: %s", err.Error())
+		http.Error(w, "Failed to get business account", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(account)
 }

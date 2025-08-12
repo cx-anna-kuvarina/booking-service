@@ -18,4 +18,5 @@ type Store interface {
 	UpdateBusinessAccount(ctx context.Context, account *BusinessAccount) error
 	DeleteBusinessAccount(ctx context.Context, businessAccountID string) error
 	UserOwnsBusinessAccount(ctx context.Context, businessAccountID, userID string) (bool, error)
+	GetBusinessAccount(ctx context.Context, businessAccountID string) (*BusinessAccount, error)
 }
