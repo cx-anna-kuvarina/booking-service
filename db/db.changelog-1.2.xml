@@ -4,12 +4,54 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
-    <changeSet id="changelog-1.2" author="anna">
+    <changeSet author="anna" id="changelog-1.2">
         <sql>
-            ALTER TABLE business_accounts
-            ADD COLUMN IF NOT EXISTS business_type character varying(255),
-            ADD COLUMN IF NOT EXISTS location character varying(255),
-            ADD COLUMN IF NOT EXISTS links jsonb;
+            CREATE TABLE IF NOT EXISTS services
+            (
+                id uuid NOT NULL PRIMARY KEY,
+                business_account_id uuid NOT NULL,
+                name character varying(255) NOT NULL,
+                description text,
+                duration_minutes integer NOT NULL,
+                price decimal(10,2) NOT NULL,
+                currency character varying(3) DEFAULT 'USD',
+                category character varying(100),
+                is_active boolean DEFAULT true,
+                created_at timestamp with time zone DEFAULT now(),
+                updated_at timestamp with time zone DEFAULT now(),
+                FOREIGN KEY (business_account_id) REFERENCES business_accounts(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS services_business_account_id_idx ON services (business_account_id);
+            CREATE INDEX IF NOT EXISTS services_category_idx ON services (category);
+            CREATE INDEX IF NOT EXISTS services_is_active_idx ON services (is_active);
+
+            -- Add created_at and updated_at columns to existing tables if they don't exist
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'created_at') THEN
+                    ALTER TABLE users ADD COLUMN created_at timestamp with time zone DEFAULT now();
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'updated_at') THEN
+                    ALTER TABLE users ADD COLUMN updated_at timestamp with time zone DEFAULT now();
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'business_accounts' AND column_name = 'created_at') THEN
+                    ALTER TABLE business_accounts ADD COLUMN created_at timestamp with time zone DEFAULT now();
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'business_accounts' AND column_name = 'updated_at') THEN
+                    ALTER TABLE business_accounts ADD COLUMN updated_at timestamp with time zone DEFAULT now();
+                END IF;
+            END $$;
         </sql>
+
+        <rollback>
+            <dropIndex indexName="services_business_account_id_idx" />
+            <dropIndex indexName="services_category_idx" />
+            <dropIndex indexName="services_is_active_idx" />
+            <dropTable tableName="services" />
+        </rollback>
     </changeSet>
 </databaseChangeLog>

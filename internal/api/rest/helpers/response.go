@@ -27,12 +27,29 @@ const (
 	UsersStoreErr
 	NotFoundErr
 	ReadBodyErr
+	InvalidRequest
+	ValidationError
+	NotFound
+	InternalError
 )
 
 type ErrorResponse struct {
 	Message string
 	Type    string
 	Code    ErrorCode
+}
+
+// ValidationErr represents a validation error
+type ValidationErr struct {
+	Message string
+}
+
+func (e *ValidationErr) Error() string {
+	return e.Message
+}
+
+func NewValidationError(message string) error {
+	return &ValidationErr{Message: message}
 }
 
 func WriteErrorResponse(w http.ResponseWriter, resp *ErrorResponse, status int) {

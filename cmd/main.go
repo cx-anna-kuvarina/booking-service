@@ -14,10 +14,12 @@ import (
 	"booking-service/internal/api/rest/bookings"
 	business_account "booking-service/internal/api/rest/business-account"
 	"booking-service/internal/api/rest/middlewares"
+	"booking-service/internal/api/rest/services"
 	"booking-service/internal/api/rest/specialists"
 	user_account "booking-service/internal/api/rest/user-account"
 	bStore "booking-service/internal/store/bookings"
 	"booking-service/internal/store/business_accounts"
+	servicesStore "booking-service/internal/store/services"
 	"booking-service/internal/store/users"
 	"booking-service/pkg/db"
 
@@ -43,11 +45,12 @@ func main() {
 	usersStore := users.NewStore(dbConn.ReadPool, dbConn.WritePool)
 	businessAccountsStore := business_accounts.NewStore(dbConn.ReadPool, dbConn.WritePool)
 	bookingsStore := bStore.NewStore(dbConn.ReadPool, dbConn.WritePool)
+	servicesStore := servicesStore.NewStore(dbConn.ReadPool, dbConn.WritePool)
 
 	go func() {
 		server := &http.Server{
 			Addr:              fmt.Sprintf(":%d", cfg.Port),
-			Handler:           setUpRouter(cfg, usersStore, businessAccountsStore, bookingsStore),
+			Handler:           setUpRouter(cfg, usersStore, businessAccountsStore, bookingsStore, servicesStore),
 			ReadHeaderTimeout: 2 * time.Second,
 		}
 		log.Info().Msgf("Starting api service at port %d", cfg.Port)
@@ -66,7 +69,7 @@ func main() {
 	}
 }
 
-func setUpRouter(cnf *Config, usersStore users.Store, businessAccountsStore business_accounts.Store, bookingsStore bStore.Store) *mux.Router {
+func setUpRouter(cnf *Config, usersStore users.Store, businessAccountsStore business_accounts.Store, bookingsStore bStore.Store, servicesStore servicesStore.Store) *mux.Router {
 	authMiddleware := middlewares.NewJWTMiddleware(cnf.JWTSecret)
 	authHandler := auth.NewHandler(cnf.GoogleLoginConfig, cnf.GoogleRandomState, cnf.JWTSecret, cnf.JWTExpPeriod, usersStore)
 	specialistsHandler := specialists.NewHandler()
@@ -82,12 +85,16 @@ func setUpRouter(cnf *Config, usersStore users.Store, businessAccountsStore busi
 	userAccountHandler := user_account.NewHandler(usersStore)
 	userAccountRouter := user_account.NewRouter(userAccountHandler, authMiddleware.Middleware)
 
+	servicesHandler := services.NewHandler(servicesStore, businessAccountsStore)
+	servicesRouter := services.NewRouter(servicesHandler, authMiddleware.Middleware)
+
 	routes := []rest.Register{
 		authRouter,
 		specialistsRouter,
 		bookingsRouter,
 		businessAccountRouter,
 		userAccountRouter,
+		servicesRouter,
 	}
 	return rest.NewRouter(routes)
 }
